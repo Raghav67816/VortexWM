@@ -2,20 +2,24 @@
 #define WM_VISUAL_H
 
 #include <X11/Xlib.h>
-#include "wm.h"
+#include <X11/extensions/Xrender.h>
+#include <X11/extensions/Xcomposite.h>
 
-class VisualMgr {
-public:
-    VisualMgr();
-    ~VisualMgr();
+#define ALPHA_50 0x80
+#define TITLE_BAR_H 30
 
-    bool init_compositor(Display *display);
-    void draw_title_bar(wm_info wm, string title);
+void init_xcomp(Display *display);
+void set_title(Display *display, Window title_bar, const std::string& title);
+void draw_title_bar(Display *display, Window title_bar, XRenderPictFormat *pict_format);
+XRenderPictFormat* init_xrender(Display *display, int screen);
+Window create_title_bar(Display *display, Window parent_window);
 
-private:
-    XColor title_bar_bg;
-    XRenderColor title_bar_xbg;
-    XRenderPictFormat *pict_format;
+// Colors
+struct CyanBlue{
+    int red = 10;
+    int blue = 10;
+    int green = 10;
 };
+
 
 #endif // WM_VISUAL_H
