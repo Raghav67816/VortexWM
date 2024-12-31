@@ -1,93 +1,94 @@
 #include <iostream>
-#include "wm.h"
 #include "wm_visual.h"
 #include <X11/Xlib.h>
+#include <string.h>
 #include <X11/extensions/Xrender.h>
-#include <X11/extensions/Xcomposite.h>
 
 using namespace std;
 
-// Constructor
-VisualMgr::VisualMgr() {
-    cout << "Composition manager initialized" << endl;
+void init_xcomp(Display *display)
+{
+    int event_base, error_base;
+    bool is_comptab = XCompositeQueryExtension(
+        display, &event_base, &error_base);
+    if (!is_comptab)
+    {
+        cout << "x compositor not found" << endl;
+        exit(1);
+    };
+    cout << "x compositor found" << endl;
 }
 
-bool VisualMgr::init_compositor(Display *display) {
-    int event_base_return = 0;
-    int error_base_return = 0;
-
-    if (XCompositeQueryExtension(display, &event_base_return, &error_base_return)) {
-        return true;
-    } else {
-        return false;
+XRenderPictFormat* init_xrender(Display *display, int screen){
+    XRenderPictFormat *pict_format = XRenderFindVisualFormat(display, DefaultVisual(display, screen));
+    if (!pict_format){
+        cout << "cannot enable transparency" << endl;
+        exit(2);
     }
+    else{
+        cout << "visual depth found "<< endl;
+    }
+    return pict_format;
 }
 
-void VisualMgr::draw_title_bar(wm_info wm, string title){
-    XRenderColor title_bar_xbg;
-    XColor title_bar_color;
-
+Window create_title_bar(Display *display, Window parent_window)
+{
     XWindowAttributes parent_win_attrs;
-    XGetWindowAttributes(wm.display, wm.window, &parent_win_attrs);
+    XGetWindowAttributes(display, parent_window, &parent_win_attrs);
 
-    Pixmap title_bar = XCreatePixmap(
-        wm.display,
-        wm.window, 
-        parent_win_attrs.width,
-        40,
-        DefaultDepth(wm.display, wm.window)
+    Window title_bar = XCreateSimpleWindow(
+        display,
+        parent_window, 
+        0, 0,
+        parent_win_attrs.width, TITLE_BAR_H,
+        0, 0, 0
     );
 
-    GC title_bar_gc = XCreateGC(wm.display, title_bar, 0, NULL);
+    // define types of events allowed
+    XSelectInput(display, title_bar, ButtonPressMask | ButtonReleaseMask | PointerMotionMask | ExposureMask);
+    XMapWindow(display, title_bar);
+    return title_bar;
+}
 
-    title_bar_color.red = 0;
-    title_bar_color.green = 191;
-    title_bar_color.blue = 255;
+void draw_title_bar(Display *display, Window title_bar, XRenderPictFormat *pict_format){
+    XWindowAttributes parent_win_attrs;
+    XGetWindowAttributes(display, title_bar, &parent_win_attrs);
 
-    title_bar_xbg.red = title_bar_color.red;
-    title_bar_xbg.green = title_bar_color.green;
-    title_bar_xbg.blue = title_bar_color.blue;
-    title_bar_xbg.alpha = 0x80;
-
-    XRenderPictureAttributes render_attributes;
-    render_attributes.subwindow_mode = IncludeInferiors;
-    render_attributes.graphics_exposures = False;
-
-    pict_format = XRenderFindVisualFormat(wm.display, DefaultVisual(
-        wm.display, wm.screen
-    ));
-
+    XRenderPictureAttributes pict_attrs = {};
     Picture title_bar_pict = XRenderCreatePicture(
-        wm.display,
-        wm.window, 
-        pict_format, 
-        CPSubwindowMode, 
-        &render_attributes
+        display,
+        title_bar,
+        pict_format,
+        0,
+        &pict_attrs
     );
 
+    XRenderColor color = {0x0000, 0xFFFF, 0xFFFF, 0x8000};
     XRenderFillRectangle(
-        wm.display,
-        0,
+        display,
+        PictOpSrc,
         title_bar_pict,
-        &title_bar_xbg,
+        &color,
         0, 0,
         parent_win_attrs.width,
-        40
+        TITLE_BAR_H
     );
-
-    XCompositeRedirectWindow(wm.display, wm.window, CompositeRedirectAutomatic);
-    XCopyArea(
-        wm.display,
-        title_bar_pict, 
-        wm.window, title_bar_gc, 
-        0, 0, 
-        parent_win_attrs.width,
-        40,
-        0, 0
-    );
-
+    XRenderFreePicture(display, title_bar_pict);
+    cout << "Picture drawn" << endl;
 }
 
-VisualMgr::~VisualMgr() {
-    cout << "Composition manager destroyed" << endl;
+void set_title(Display *display, Window title_bar, const std::string& title) {
+    GC title_gc = XCreateGC(display, title_bar, 0, NULL);
+
+    XWindowAttributes title_bar_attrs;
+    XGetWindowAttributes(display, title_bar, &title_bar_attrs);
+
+    XSetFont(display, title_gc, XLoadFont(display, "fixed"));  // Or another font
+
+    const char* title_char = title.c_str();
+    int title_len = title.length();
+
+    XDrawString(display, title_bar, title_gc, title_bar_attrs.width / 2, 15, title_char, title_len);
+
+    XFreeGC(display, title_gc);
 }
