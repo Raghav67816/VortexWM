@@ -2,17 +2,10 @@
 #define WM_H
 
 #include <X11/Xlib.h>
-#include "wm_visual.h"
+#include <X11/extensions/Xrender.h>
 
 
 #define BORDER_WIDTH 5
-
-struct wm_info{
-    Display *display;
-    int screen;
-    Window window;
-    Window root_window;
-};
 
 
 class WindowManager {
@@ -23,6 +16,15 @@ private:
     bool is_on_border;
     bool is_dragging;
 
+    int start_x, start_y;
+    int delta_x, delta_y;
+
+    Display *display;
+    Window window;
+    Window root_window;
+    Window title_bar;
+    
+    int screen;
 
     Colormap color_map;
     GC graphics_ctx;
@@ -31,21 +33,14 @@ private:
     Cursor x_resize_cursor;
     Cursor y_resize_cursor;
 
-    VisualMgr visual_mgr;
+    XRenderPictFormat *pict_format;
 
     void draw_border();
     void composite_init();
-    wm_info get_wm();
+    XWindowAttributes get_win_attrs();
     void check_resize_request(XWindowAttributes *attrs,int x, int y);
 
 public:
-    Display *display;
-    Window window;
-    Window root_window;
-    int screen;
-
-    wm_info info;
-
     WindowManager();
     ~WindowManager();
 
@@ -53,7 +48,6 @@ public:
     void create_window(int width, int height, int x, int y);
     void start_loop();
     void stop_loop();
-    XWindowAttributes get_win_attrs();
 };
 
 #endif // WM_H
