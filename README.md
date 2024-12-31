@@ -19,8 +19,7 @@ Even though this is not the complete OS but a window manager that tries to repli
 **Note: This is currently under development**
 
 ## Installation
-To install this window manager as a standalone application. Go to releases page and download the "wm" executable because that's the stable executable I have. Current code has some errors right now. hehehe... sorry
-
+To install this window manager as a standalone application. Go to releases page and download the "wm" executable because that's the stable executable I have.
 To build from source.
 
 1. Install dependencies
