@@ -5,9 +5,7 @@ int main() {
     WindowManager wm;
 
     // Initialize the window manager
-    if (wm.init("My Window")) {
-        return 1; // If initialization fails, return an error code
-    }
+    wm.init("window");
 
     // Create the window with specified dimensions and position
     wm.create_window(800, 600, 100, 100);
