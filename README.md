@@ -49,7 +49,7 @@ Compiling might fail with the current code. I will fix it soon :) Ahh... the xli
 
 ### 2. **Window Decorations**
 - [ ] **Create a title bar** for windows that includes:
-    - [ ] Basic text display (window title).
+    - [x] Basic text display (window title).
     - [ ] Buttons for minimizing, maximizing, and closing the window.
 - [ ] **Make title bar draggable** for window movement.
 
