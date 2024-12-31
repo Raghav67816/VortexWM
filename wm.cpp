@@ -1,5 +1,4 @@
 #include "wm.h"
-#include <stdio.h>
 #include <iostream>
 #include "wm_visual.h"
 #include <X11/Xatom.h>
@@ -8,6 +7,10 @@
 
 using namespace std;
 
+/*
+Window Manager constructor
+Initialise all member variables. Leaving them uninitialised leads to mem. leaks
+*/
 WindowManager::WindowManager()
 {
     display = nullptr;
@@ -21,9 +24,18 @@ WindowManager::WindowManager()
     is_on_border = false;
     resize_direction = 0;
     is_dragging = false;
-    wm_info info = {};
+    pict_format = nullptr;
+    title_bar = NULL;
+    start_x, start_y, delta_x, delta_y = 0;
 }
 
+/*
+WindowManager::init
+
+Setup window manager
+create display and define cursors.
+connection to X server is made from here
+*/
 int WindowManager::init(const char *title)
 {
     display = XOpenDisplay(NULL);
@@ -39,22 +51,27 @@ int WindowManager::init(const char *title)
     color_map = DefaultColormap(display, screen);
     graphics_ctx = XDefaultGC(display, screen);
 
-    // pre-define cursor
     x_resize_cursor = XCreateFontCursor(display, XC_sb_h_double_arrow);
     y_resize_cursor = XCreateFontCursor(display, XC_sb_v_double_arrow);
 
-    // init compositor
-    VisualMgr visual_mgr;
-    bool is_comp_compat = visual_mgr.init_compositor(display);
-    if (!is_comp_compat)
+    XVisualInfo visual_info;
+    if (!XMatchVisualInfo(display, screen, 32, TrueColor, &visual_info))
     {
-        exit(1);
+        std::cerr << "No ARGB visual found" << std::endl;
+        return 1;
     }
-    else
-    {
-        return 0;
-    }
+
+    // init x compositor
+    init_xcomp(display);
+    pict_format = init_xrender(display, screen);
+
+    return 1;
 }
+
+/*
+WindowManager::create_window()
+if connection to x server was successful create a window
+*/
 
 void WindowManager::create_window(int width, int height, int x, int y)
 {
@@ -78,9 +95,12 @@ void WindowManager::create_window(int width, int height, int x, int y)
         return;
     }
 
+    // define title bar
+    title_bar = create_title_bar(display, window);
     XCompositeRedirectWindow(display, window, CompositeRedirectAutomatic);
 }
 
+// Draw custom border using rectangle.
 void WindowManager::draw_border()
 {
     XColor cyan;
@@ -104,6 +124,11 @@ void WindowManager::draw_border()
     XFreeGC(display, border_gc);
 }
 
+/*
+WindowManager::check_resize_request
+
+Checks if the mouse is hovering around the border.
+*/
 void WindowManager::check_resize_request(XWindowAttributes *attrs, int x, int y)
 {
 
@@ -151,103 +176,152 @@ void WindowManager::check_resize_request(XWindowAttributes *attrs, int x, int y)
     }
 }
 
+XWindowAttributes WindowManager::get_win_attrs()
+{
+    XWindowAttributes win_attrs;
+    XGetWindowAttributes(display, window, &win_attrs);
+    return win_attrs;
+}
+
 void WindowManager::start_loop()
 {
     XMapWindow(display, window);
     XSetInputFocus(display, window, RevertToNone, CurrentTime);
+
+    // Set the event mask to listen for mouse motion events and other relevant events
+    XSelectInput(display, window, ExposureMask | ButtonPressMask | ButtonReleaseMask | PointerMotionMask);
 
     XWindowAttributes global_attrs;
     XGetWindowAttributes(display, window, &global_attrs);
 
     XEvent event;
 
-    while (1)
+    draw_border();
+    draw_title_bar(display, title_bar, pict_format);
+    set_title(display, title_bar, "Hello World");
+
+    while (true)
     {
+        // Wait for the next event
         XNextEvent(display, &event);
-        draw_border();
 
-        switch (event.type)
+        // Handle events for the title bar
+        if (event.xany.window == title_bar)
         {
-        case Expose:
-            std::cout << "window exposed" << std::endl;
-            break;
-
-        case ButtonPress:
-            if (is_on_border && event.xbutton.button == Button1)
+            switch (event.type)
             {
-                is_resizing = true;
-            }
-            break;
+            case Expose:
+                std::cout << "Title Bar Exposed" << std::endl;
+                break;
 
-        case ButtonRelease:
-            if (event.xbutton.button == Button1 && is_resizing)
-            {
-                is_resizing = false;
-            }
-            break;
+            case ButtonPress:
+                if (event.xbutton.button == Button1)
+                {
+                    is_dragging = true;
+                    start_x = event.xbutton.x_root;
+                    start_y = event.xbutton.y_root;
+                }
+                break;
 
-        case KeyPress:
-        {
-            std::cout << "Key pressed!" << std::endl;
-            KeySym key_symbol = XLookupKeysym(&event.xkey, 0);
-            unsigned int modifier = event.xkey.state;
-            modifier = modifier & ~(LockMask | Mod2Mask);
+            case ButtonRelease:
+                if (event.xbutton.button == Button1 && is_dragging)
+                {
+                    is_dragging = false;
+                }
+                break;
+
+            default:
+                break;
+            }
         }
 
-        case MotionNotify:
-            if (is_resizing)
+        // Handle events for the main window
+        else if (event.xany.window == window)
+        {
+            switch (event.type)
             {
-                XWindowAttributes new_attrs;
-                XGetWindowAttributes(display, window, &new_attrs);
+            case Expose:
+                std::cout << "Window Exposed" << std::endl;
+                break;
 
-                if (resize_direction == 1)
+            case ButtonPress:
+                if (is_on_border && event.xbutton.button == Button1)
                 {
-                    int new_width = event.xmotion.x;
-                    if (new_width > 0)
+                    is_resizing = true;
+                }
+                break;
+
+            case ButtonRelease:
+                if (event.xbutton.button == Button1 && is_resizing)
+                {
+                    is_resizing = false;
+                }
+                break;
+
+            case MotionNotify:
+                if (is_dragging)
+                {
+                    // Calculate delta_x and delta_y for dragging
+                    delta_x = event.xmotion.x_root - start_x;
+                    delta_y = event.xmotion.y_root - start_y;
+
+                    // Move the window
+                    XMoveWindow(display, window, global_attrs.x + delta_x, global_attrs.y + delta_y);
+                    XMoveWindow(display, title_bar, global_attrs.x + delta_x, global_attrs.y + delta_y);
+
+                    // Update start positions to calculate the next delta
+                    start_x = event.xmotion.x_root;
+                    start_y = event.xmotion.y_root;
+                }
+                else if (is_resizing)
+                {
+                    XWindowAttributes new_attrs;
+                    XGetWindowAttributes(display, window, &new_attrs);
+
+                    if (resize_direction == 1)
                     {
-                        XResizeWindow(display, window, new_width, new_attrs.height);
+                        int new_width = event.xmotion.x;
+                        if (new_width > 0)
+                        {
+                            XResizeWindow(display, window, new_width, new_attrs.height);
+                            XResizeWindow(display, title_bar, new_width, 30);
+                            draw_title_bar(display, title_bar, pict_format);
+                        }
+                    }
+                    else if (resize_direction == 2)
+                    {
+                        int new_height = event.xmotion.y;
+                        if (new_height > 0)
+                        {
+                            XResizeWindow(display, window, new_attrs.width, new_height);
+                        }
                     }
                 }
-                else if (resize_direction == 2)
+                else
                 {
-                    int new_height = event.xmotion.y;
-                    if (new_height > 0)
-                    {
-                        XResizeWindow(display, window, new_attrs.width, new_height);
-                    }
+                    check_resize_request(&global_attrs, event.xmotion.x, event.xmotion.y);
                 }
-            }
-            else
-            {
-                check_resize_request(&global_attrs, event.xmotion.x, event.xmotion.y);
-            }
-            break;
+                break;
 
-        case ConfigureNotify:
-            std::cout << "user wants to change window props" << std::endl;
-            break;
+            case ConfigureNotify:
+                std::cout << "User wants to change window properties" << std::endl;
+                break;
 
-        default:
-            break;
+            default:
+                break;
+            }
         }
+
+        // Make sure to flush the event queue
+        XFlush(display);
     }
-
-    XFlush(display);
 }
+
 
 void WindowManager::stop_loop()
 {
     XDestroyWindow(display, window);
     XCloseDisplay(display);
-}
-
-wm_info WindowManager::get_wm(){
-    info.display = display;
-    info.screen = screen;
-    info.window = window;
-    info.root_window = root_window;
-
-    return info;
 }
 
 WindowManager::~WindowManager()
