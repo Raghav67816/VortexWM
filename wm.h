@@ -34,11 +34,11 @@ private:
     Cursor y_resize_cursor;
 
     XRenderPictFormat *pict_format;
-
-    void draw_border();
+    
     void composite_init();
+    void gl_init();
     XWindowAttributes get_win_attrs();
-    void check_resize_request(XWindowAttributes *attrs,int x, int y);
+    void check_resize_request(XWindowAttributes *attrs, int x, int y);
 
 public:
     WindowManager();

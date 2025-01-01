@@ -1,6 +1,9 @@
 #include "wm.h"
+#include <GL/gl.h>
+#include <GL/glx.h>
 #include <iostream>
 #include "wm_visual.h"
+#include "wm_utils.h"
 #include <X11/Xatom.h>
 #include <X11/cursorfont.h>
 #include <X11/extensions/Xcomposite.h>
@@ -100,28 +103,11 @@ void WindowManager::create_window(int width, int height, int x, int y)
     XCompositeRedirectWindow(display, window, CompositeRedirectAutomatic);
 }
 
-// Draw custom border using rectangle.
-void WindowManager::draw_border()
-{
-    XColor cyan;
-    if (!XParseColor(display, color_map, "cyan", &cyan))
-    {
-        printf("Failed to parse color\n");
-    }
-
-    if (!XAllocColor(display, color_map, &cyan))
-    {
-        printf("Failed to allocate color\n");
-    }
-
-    XWindowAttributes temp_attrs;
-    XGetWindowAttributes(display, window, &temp_attrs);
-
-    GC border_gc = XCreateGC(display, window, 0, NULL);
-    XSetForeground(display, border_gc, cyan.pixel);
-    XDrawRectangle(display, window, border_gc, 0, 0, temp_attrs.width - 1, temp_attrs.height - 1);
-
-    XFreeGC(display, border_gc);
+void WindowManager::gl_init(){
+    GLint attributes[] = {GLX_RGBA, GLX_DEPTH_SIZE, 24, GLX_DOUBLEBUFFER, None};
+    XVisualInfo *visual_info = glXChooseVisual(display, screen, attributes);
+    GLXContext gl_context = glXCreateContext(display, visual_info, NULL, GL_TRUE);
+    glXMakeCurrent(display, window, gl_context);
 }
 
 /*
@@ -137,7 +123,6 @@ void WindowManager::check_resize_request(XWindowAttributes *attrs, int x, int y)
     // left border
     if (x <= attrs->width - 1 && x >= attrs->width - 10)
     {
-        printf("right border");
         XDefineCursor(display, window, x_resize_cursor);
         is_on_border = true;
         resize_direction = 1;
@@ -146,7 +131,6 @@ void WindowManager::check_resize_request(XWindowAttributes *attrs, int x, int y)
     // right border
     if (x <= 10 && x >= 0)
     {
-        printf("left border");
         XDefineCursor(display, window, x_resize_cursor);
         is_on_border = true;
         resize_direction = 1;
@@ -155,7 +139,6 @@ void WindowManager::check_resize_request(XWindowAttributes *attrs, int x, int y)
     // bottom border
     if (y <= 10 && y >= 0)
     {
-        printf("upper border");
         XDefineCursor(display, window, y_resize_cursor);
         is_on_border = true;
         resize_direction = 2;
@@ -163,7 +146,6 @@ void WindowManager::check_resize_request(XWindowAttributes *attrs, int x, int y)
 
     if (y >= attrs->height - 10 && y <= attrs->height - 1)
     {
-        printf("bottom border\n");
         XDefineCursor(display, window, y_resize_cursor);
         is_on_border = true;
         resize_direction = 2;
@@ -188,30 +170,53 @@ void WindowManager::start_loop()
     XMapWindow(display, window);
     XSetInputFocus(display, window, RevertToNone, CurrentTime);
 
-    // Set the event mask to listen for mouse motion events and other relevant events
-    XSelectInput(display, window, ExposureMask | ButtonPressMask | ButtonReleaseMask | PointerMotionMask);
+
+    XSelectInput(display, window, ExposureMask | ButtonPressMask | ButtonReleaseMask | PointerMotionMask | StructureNotifyMask);
 
     XWindowAttributes global_attrs;
     XGetWindowAttributes(display, window, &global_attrs);
 
+    gl_init();
+
     XEvent event;
 
-    draw_border();
-    draw_title_bar(display, title_bar, pict_format);
-    set_title(display, title_bar, "Hello World");
+    draw_border(
+        display,
+        window, 
+        color_map
+    );
+
+    draw_title_bar(
+        display, 
+        title_bar, 
+        pict_format
+    );
+
+    set_title(
+        display, 
+        title_bar, 
+        screen,
+        "Terminal"
+    );
+
+    float rotation_angle = 0.0f;
 
     while (true)
     {
-        // Wait for the next event
         XNextEvent(display, &event);
 
-        // Handle events for the title bar
         if (event.xany.window == title_bar)
         {
             switch (event.type)
             {
             case Expose:
                 std::cout << "Title Bar Exposed" << std::endl;
+                set_title(
+                    display,
+                    title_bar,
+                    screen,
+                    "Terminal"
+                );
                 break;
 
             case ButtonPress:
@@ -235,7 +240,6 @@ void WindowManager::start_loop()
             }
         }
 
-        // Handle events for the main window
         else if (event.xany.window == window)
         {
             switch (event.type)
@@ -261,15 +265,12 @@ void WindowManager::start_loop()
             case MotionNotify:
                 if (is_dragging)
                 {
-                    // Calculate delta_x and delta_y for dragging
                     delta_x = event.xmotion.x_root - start_x;
                     delta_y = event.xmotion.y_root - start_y;
 
-                    // Move the window
                     XMoveWindow(display, window, global_attrs.x + delta_x, global_attrs.y + delta_y);
                     XMoveWindow(display, title_bar, global_attrs.x + delta_x, global_attrs.y + delta_y);
 
-                    // Update start positions to calculate the next delta
                     start_x = event.xmotion.x_root;
                     start_y = event.xmotion.y_root;
                 }
@@ -304,15 +305,24 @@ void WindowManager::start_loop()
                 break;
 
             case ConfigureNotify:
-                std::cout << "User wants to change window properties" << std::endl;
+                // glViewport(0, 0, event.xconfigure.width, event.xconfigure.height);
+                draw_border(
+                    display,
+                    window,
+                    color_map
+                );
+                cout << "redrawing border" << endl;
                 break;
 
             default:
                 break;
             }
         }
-
-        // Make sure to flush the event queue
+        rotation_angle += 1.0f;
+        if (rotation_angle >= 360.0f) {
+            rotation_angle -= 360.0f;
+        }
+        render_opengl(display, window, rotation_angle);
         XFlush(display);
     }
 }

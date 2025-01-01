@@ -82,7 +82,7 @@ void set_title(Display *display, Window title_bar, int screen, const std::string
     XWindowAttributes title_bar_attrs;
     XGetWindowAttributes(display, title_bar, &title_bar_attrs);
 
-    XftFont *default_font = XftFontOpenName(display, screen, "Space Mono-Bold"); // Replace with your font
+    XftFont *default_font = XftFontOpenName(display, screen, "Space Mono-Bold");
     if (!default_font) {
         std::cerr << "Font 'Mokoto' not found!" << std::endl;
         exit(1);
@@ -95,7 +95,7 @@ void set_title(Display *display, Window title_bar, int screen, const std::string
         exit(1);
     }
 
-    XRenderColor render_color = {0xffff, 0xffff, 0xffff, 0xffff}; // White color
+    XRenderColor render_color = {0xffff, 0xffff, 0xffff, 0xffff};
     XftColor font_color;
     if (!XftColorAllocValue(display, DefaultVisual(display, screen), DefaultColormap(display, screen), &render_color, &font_color)) {
         std::cerr << "Failed to allocate font color!" << std::endl;
@@ -119,9 +119,30 @@ void set_title(Display *display, Window title_bar, int screen, const std::string
         title.length()
     );
 
-    // Clean up resources
     XftColorFree(display, DefaultVisual(display, screen), DefaultColormap(display, screen), &font_color);
     XftFontClose(display, default_font);
     XftDrawDestroy(xft_draw);
 }
 
+void draw_border(Display *display, Window window, Colormap color_map)
+{
+    XColor custom_color;
+    custom_color.red = 0x0000;
+    custom_color.green = 0x7F7F;
+    custom_color.blue = 0xFFFF;
+    custom_color.flags = DoRed | DoGreen | DoBlue;
+
+    if (!XAllocColor(display, color_map, &custom_color))
+    {
+        printf("Failed to allocate custom color\n");
+        return;
+    }
+
+    XWindowAttributes temp_attrs;
+    XGetWindowAttributes(display, window, &temp_attrs);
+
+    GC border_gc = XCreateGC(display, window, 0, NULL);
+    XSetForeground(display, border_gc, custom_color.pixel);
+    XDrawRectangle(display, window, border_gc, 0, 0, temp_attrs.width - 1, temp_attrs.height - 1);
+    XFreeGC(display, border_gc);
+}
