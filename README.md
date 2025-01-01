@@ -53,7 +53,7 @@ Compiling might fail with the current code. I will fix it soon :) Ahh... the xli
 - [ ] **Make title bar draggable** for window movement.
 
 ### 3. **Window Resizing & Moving**
-- [ ] **Add functionality for resizing windows** using mouse drag events.
+- [x] **Add functionality for resizing windows** using mouse drag events.
 - [ ] **Implement window movement** by detecting mouse drag on the title bar.
 
 ### 4. **Transparency (XRender/XComposite)**
