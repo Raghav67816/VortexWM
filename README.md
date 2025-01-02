@@ -18,6 +18,11 @@ Even though this is not the complete OS but a window manager that tries to repli
 
 **Note: This is currently under development**
 
+Some of the pirates from Hack Club provided feedback on this project. Thank You Very Much
+Thank you for your both positive and constructive reviews. Regarding your concerns for VortexWM purpose. Let me make it clear here.
+
+It's a passion project. I wanted to replicate the visuals of Operating System from Iron Man 1 while maintaining realism and functioning. It can be used as a general-purpose window manager. 
+
 ## Installation
 To install this window manager as a standalone application. Go to releases page and download the "wm" executable because that's the stable executable I have.
 To build from source.
