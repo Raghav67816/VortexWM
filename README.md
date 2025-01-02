@@ -72,8 +72,8 @@ Compiling might fail with the current code. I will fix it soon :) Ahh... the xli
 - [ ] **Add window animations** like growing window height using the Xcomposite extension.
   
 ### 6. **Keyboard Shortcuts**
-- [ ] **Integrate keyboard shortcuts** using XKB extension for window actions like:
-    - [ ] Close window.
+- [x] **Integrate keyboard shortcuts** using XKB extension for window actions like:
+    - [x] Close window.
     - [ ] Minimize window.
     - [ ] Switch between windows.
 
